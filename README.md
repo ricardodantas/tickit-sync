@@ -14,6 +14,9 @@
   <a href="https://github.com/ricardodantas/tickit-sync/releases">
     <img src="https://img.shields.io/github/v/release/ricardodantas/tickit-sync?style=flat&labelColor=1e1e2e&color=cba6f7&logo=github&logoColor=white" alt="Release">
   </a>
+  <a href="https://crates.io/crates/tickit-sync">
+    <img src="https://img.shields.io/crates/v/tickit-sync?style=flat&labelColor=1e1e2e&color=fab387&logo=rust&logoColor=white" alt="Crates.io">
+  </a>
   <a href="https://hub.docker.com/r/ricardodantas/tickit-sync">
     <img src="https://img.shields.io/docker/v/ricardodantas/tickit-sync?style=flat&labelColor=1e1e2e&color=89b4fa&logo=docker&logoColor=white&label=docker" alt="Docker">
   </a>
