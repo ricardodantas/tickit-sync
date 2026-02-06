@@ -34,7 +34,7 @@
 
 - [✨ Features](#-features)
 - [🚀 Quick Start](#-quick-start)
-- [🐳 Docker Deployment](#-docker-deployment)
+- [🐳 Docker / Podman Deployment](#-docker--podman-deployment)
 - [⚙️ Configuration](#️-configuration)
 - [🔐 Authentication](#-authentication)
 - [📡 API Reference](#-api-reference)
@@ -157,22 +157,32 @@ interval_secs = 300  # Sync every 5 minutes
 
 <br>
 
-## 🐳 Docker Deployment
+## 🐳 Docker / Podman Deployment
+
+> **Note:** All commands below work with both Docker and Podman. Simply replace `docker` with `podman` if you prefer Podman.
 
 ### Quick Start
 
 ```bash
+# Docker
 docker run -d \
   --name tickit-sync \
   -p 3030:3030 \
   -v tickit-data:/data \
   ricardodantas/tickit-sync
+
+# Podman
+podman run -d \
+  --name tickit-sync \
+  -p 3030:3030 \
+  -v tickit-data:/data \
+  docker.io/ricardodantas/tickit-sync
 ```
 
-### Docker Compose (Recommended)
+### Docker/Podman Compose (Recommended)
 
 ```yaml
-# docker-compose.yml
+# docker-compose.yml / podman-compose.yml
 services:
   tickit-sync:
     image: ricardodantas/tickit-sync:latest
@@ -187,13 +197,21 @@ services:
 ```
 
 ```bash
+# Docker
 docker compose up -d
+
+# Podman
+podman-compose up -d
 ```
 
-### Generate Token in Docker
+### Generate Token in Container
 
 ```bash
+# Docker
 docker exec tickit-sync tickit-sync token --name "my-device"
+
+# Podman
+podman exec tickit-sync tickit-sync token --name "my-device"
 ```
 
 ### With Reverse Proxy (Caddy)
