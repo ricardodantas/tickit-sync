@@ -1,7 +1,8 @@
-FROM rust:1.87-bookworm as builder
+FROM rust:1.93-bookworm AS builder
 
 WORKDIR /app
-COPY tickit-sync/ .
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
 RUN cargo build --release
 
 FROM debian:bookworm-slim
