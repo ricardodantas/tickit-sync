@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/ricardodantas/tickit/main/screenshots/01-tasks.png" alt="Tickit Sync" width="600">
-</p>
-
 <h1 align="center">
   ☁️ Tickit Sync Server
 </h1>
