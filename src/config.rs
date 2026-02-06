@@ -110,7 +110,7 @@ impl Config {
         // Add helpful comments
         let with_comments = format!(
             "# tickit-sync configuration\n\
-             # See: https://github.com/ricardodantas/tickit\n\n\
+             # See: https://github.com/ricardodantas/tickit-sync\n\n\
              {}\n\n\
              # Add tokens with: tickit-sync token --name <device-name>\n\
              # Example:\n\

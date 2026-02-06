@@ -42,9 +42,21 @@ enum Commands {
 
     /// Generate a new API token
     Token {
-        /// Optional name/label for the token
+        /// Name/label for the token
         #[arg(short, long)]
         name: Option<String>,
+
+        /// List all configured tokens
+        #[arg(long)]
+        list: bool,
+
+        /// Revoke a token by name
+        #[arg(long)]
+        revoke: Option<String>,
+
+        /// Config file path (for list/revoke operations)
+        #[arg(short, long)]
+        config: Option<PathBuf>,
     },
 
     /// Initialize a new config file
@@ -86,7 +98,65 @@ async fn main() -> Result<()> {
             run_server(cfg).await
         }
 
-        Commands::Token { name } => {
+        Commands::Token {
+            name,
+            list,
+            revoke,
+            config,
+        } => {
+            let config_path = if let Some(path) = config {
+                path
+            } else {
+                Config::default_path()?
+            };
+
+            // List tokens
+            if list {
+                if !config_path.exists() {
+                    println!("No config file found at {}", config_path.display());
+                    println!("Run 'tickit-sync init' to create one.");
+                    return Ok(());
+                }
+
+                let cfg = Config::load_from(&config_path)?;
+                if cfg.tokens.is_empty() {
+                    println!("No tokens configured.");
+                    println!("Generate one with: tickit-sync token --name <device-name>");
+                } else {
+                    println!("Configured tokens:");
+                    println!();
+                    for token in &cfg.tokens {
+                        println!(
+                            "  {} - {}...",
+                            token.name,
+                            &token.token[..12.min(token.token.len())]
+                        );
+                    }
+                }
+                return Ok(());
+            }
+
+            // Revoke token
+            if let Some(token_name) = revoke {
+                if !config_path.exists() {
+                    println!("No config file found at {}", config_path.display());
+                    return Ok(());
+                }
+
+                let mut cfg = Config::load_from(&config_path)?;
+                let original_len = cfg.tokens.len();
+                cfg.tokens.retain(|t| t.name != token_name);
+
+                if cfg.tokens.len() == original_len {
+                    println!("Token '{}' not found.", token_name);
+                } else {
+                    cfg.save_to(&config_path)?;
+                    println!("Revoked token '{}'.", token_name);
+                }
+                return Ok(());
+            }
+
+            // Generate new token
             let token = generate_token();
             let label = name.unwrap_or_else(|| "default".to_string());
 
@@ -152,10 +222,12 @@ fn generate_token() -> String {
     let bytes: [u8; 32] = rng.random();
 
     // Base64-like encoding but URL-safe
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-    bytes
+    let token_body: String = bytes
         .iter()
         .map(|b| ALPHABET[(*b as usize) % ALPHABET.len()] as char)
-        .collect()
+        .collect();
+
+    format!("tks_{}", token_body)
 }
