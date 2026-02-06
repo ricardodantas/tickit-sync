@@ -111,9 +111,9 @@ tar xzf tickit-sync-linux-x86_64.tar.gz
 sudo mv tickit-sync /usr/local/bin/
 ```
 
-**From Source**
+**From crates.io**
 ```bash
-cargo install --git https://github.com/ricardodantas/tickit-sync
+cargo install tickit-sync
 ```
 
 ### 2. Initialize
