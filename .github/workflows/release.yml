@@ -207,6 +207,8 @@ jobs:
     name: Build & Push Docker Image
     needs: [release, github-release]
     runs-on: ubuntu-latest
+    # Only run if Docker Hub secrets are configured
+    if: ${{ vars.ENABLE_DOCKER == 'true' }}
     permissions:
       contents: read
       packages: write
@@ -249,6 +251,8 @@ jobs:
     name: Update Homebrew Tap
     needs: [release, github-release]
     runs-on: ubuntu-latest
+    # Only run if Homebrew tap token is configured
+    if: ${{ vars.ENABLE_HOMEBREW == 'true' }}
     steps:
       - name: Wait for release assets
         run: sleep 30
