@@ -19,9 +19,10 @@ impl Database {
     pub fn open(path: &Path) -> Result<Self> {
         // Ensure parent directory exists
         if let Some(parent) = path.parent()
-            && !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent).context("Failed to create database directory")?;
-            }
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent).context("Failed to create database directory")?;
+        }
 
         let conn = Connection::open(path).context("Failed to open database")?;
 
