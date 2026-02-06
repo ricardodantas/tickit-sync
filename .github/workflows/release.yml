@@ -203,6 +203,21 @@ jobs:
           files: |
             artifacts/*
 
+  publish-crates:
+    name: Publish to crates.io
+    needs: [release, github-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.release.outputs.version }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
   docker:
     name: Build & Push Docker Image
     needs: [release, github-release]
