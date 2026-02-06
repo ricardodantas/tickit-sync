@@ -368,7 +368,7 @@ Content-Type: application/json
 ## 🏗️ Architecture
 
 ```
-tickit-sync/
+.
 ├── src/
 │   ├── main.rs        # CLI entry point (clap)
 │   ├── api.rs         # Axum HTTP handlers
