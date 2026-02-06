@@ -63,8 +63,8 @@ Simple API token authentication. Generate tokens per-device for easy management.
 </td>
 <td width="50%">
 
-### 🐳 Docker Ready
-One-command deployment with Docker. Includes docker-compose for production use.
+### 🐳 Docker/Podman Ready
+One-command deployment with Docker or Podman. Includes docker-compose for production use.
 
 ### 🔄 Conflict Resolution
 Last-write-wins with timestamp-based conflict detection. Your most recent changes always win.
