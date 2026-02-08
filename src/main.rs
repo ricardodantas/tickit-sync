@@ -126,11 +126,13 @@ async fn main() -> Result<()> {
                     println!("Configured tokens:");
                     println!();
                     for token in &cfg.tokens {
-                        println!(
-                            "  {} - {}...",
-                            token.name,
-                            &token.token[..12.min(token.token.len())]
-                        );
+                        // Show truncated hash (first 20 chars)
+                        let hash_preview = if token.token_hash.len() > 20 {
+                            format!("{}...", &token.token_hash[..20])
+                        } else {
+                            token.token_hash.clone()
+                        };
+                        println!("  {} - {}", token.name, hash_preview);
                     }
                 }
                 return Ok(());
@@ -170,25 +172,33 @@ async fn main() -> Result<()> {
                     return Ok(());
                 }
                 
+                // Hash the token before storing
+                let token_hash = config::hash_token(&token)?;
+                
                 cfg.tokens.push(config::TokenConfig {
                     name: label.clone(),
-                    token: token.clone(),
+                    token_hash,
                 });
                 cfg.save_to(&config_path)?;
                 
-                println!("Generated API token for '{}' and saved to config:", label);
+                println!("Generated API token for '{}' and saved to config (hashed):", label);
             } else {
+                // Hash for display
+                let token_hash = config::hash_token(&token)?;
+                
                 println!("Generated API token for '{}':", label);
                 println!();
                 println!("Add this to your config.toml:");
                 println!();
                 println!("  [[tokens]]");
                 println!("  name = \"{}\"", label);
-                println!("  token = \"{}\"", token);
+                println!("  token_hash = \"{}\"", token_hash);
             }
             
             println!();
             println!("  {}", token);
+            println!();
+            println!("⚠️  Save this token now - it cannot be retrieved later (only the hash is stored).");
             println!();
             println!("Configure Tickit client with:");
             println!();

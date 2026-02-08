@@ -1,11 +1,10 @@
 //! Database module for tickit-sync server
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use rusqlite::{Connection, params};
 use std::path::Path;
 use std::sync::Mutex;
-use uuid::Uuid;
 
 use crate::models::{List, Priority, RecordType, SyncRecord, Tag, Task, TaskTagLink};
 
@@ -57,7 +56,8 @@ impl Database {
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 color TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                updated_at TEXT
             );
 
             -- Tasks table
@@ -111,14 +111,12 @@ impl Database {
     }
 
     /// Get all changes since a given timestamp
-    pub fn get_changes_since(&self, since: Option<DateTime<Utc>>) -> Result<Vec<SyncRecord>> {
+    pub fn get_changes_since(&self, since: Option<&str>) -> Result<Vec<SyncRecord>> {
         let conn = self.conn.lock().unwrap();
         let mut changes = Vec::new();
 
-        let since_str = since.map(|dt| dt.to_rfc3339());
-
         // Get lists
-        let lists = if let Some(ref since) = since_str {
+        let lists = if let Some(since) = since {
             let mut stmt = conn.prepare(
                 "SELECT id, name, description, icon, color, is_inbox, sort_order, created_at, updated_at 
                  FROM lists WHERE updated_at > ?1"
@@ -136,12 +134,12 @@ impl Database {
         }
 
         // Get tags
-        let tags = if let Some(ref since) = since_str {
+        let tags = if let Some(since) = since {
             let mut stmt =
-                conn.prepare("SELECT id, name, color, created_at FROM tags WHERE created_at > ?1")?;
+                conn.prepare("SELECT id, name, color, created_at, updated_at FROM tags WHERE created_at > ?1")?;
             self.collect_tags(&mut stmt, params![since])?
         } else {
-            let mut stmt = conn.prepare("SELECT id, name, color, created_at FROM tags")?;
+            let mut stmt = conn.prepare("SELECT id, name, color, created_at, updated_at FROM tags")?;
             self.collect_tags(&mut stmt, [])?
         };
 
@@ -150,7 +148,7 @@ impl Database {
         }
 
         // Get tasks
-        let tasks = if let Some(ref since) = since_str {
+        let tasks = if let Some(since) = since {
             let mut stmt = conn.prepare(
                 "SELECT id, title, description, url, priority, completed, list_id, 
                  created_at, updated_at, completed_at, due_date FROM tasks WHERE updated_at > ?1",
@@ -169,7 +167,7 @@ impl Database {
         }
 
         // Get tombstones
-        let tombstones = if let Some(ref since) = since_str {
+        let tombstones = if let Some(since) = since {
             let mut stmt = conn.prepare(
                 "SELECT id, record_type, deleted_at FROM tombstones WHERE deleted_at > ?1",
             )?;
@@ -197,19 +195,15 @@ impl Database {
     ) -> Result<Vec<List>> {
         let rows = stmt.query_map(params, |row| {
             Ok(List {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                id: row.get(0)?,
                 name: row.get(1)?,
                 description: row.get(2)?,
                 icon: row.get(3)?,
                 color: row.get(4)?,
                 is_inbox: row.get::<_, i32>(5)? != 0,
                 sort_order: row.get(6)?,
-                created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
-                    .unwrap()
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
-                    .unwrap()
-                    .with_timezone(&Utc),
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
             })
         })?;
 
@@ -223,12 +217,11 @@ impl Database {
     ) -> Result<Vec<Tag>> {
         let rows = stmt.query_map(params, |row| {
             Ok(Tag {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                id: row.get(0)?,
                 name: row.get(1)?,
                 color: row.get(2)?,
-                created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
-                    .unwrap()
-                    .with_timezone(&Utc),
+                created_at: row.get(3)?,
+                updated_at: row.get(4)?,
             })
         })?;
 
@@ -251,28 +244,18 @@ impl Database {
             };
 
             Ok(Task {
-                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                id: row.get(0)?,
                 title: row.get(1)?,
                 description: row.get(2)?,
                 url: row.get(3)?,
                 priority,
                 completed: row.get::<_, i32>(5)? != 0,
-                list_id: Uuid::parse_str(&row.get::<_, String>(6)?).unwrap(),
+                list_id: row.get(6)?,
                 tag_ids: Vec::new(), // Filled below
-                created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
-                    .unwrap()
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
-                    .unwrap()
-                    .with_timezone(&Utc),
-                completed_at: row
-                    .get::<_, Option<String>>(9)?
-                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
-                    .map(|dt| dt.with_timezone(&Utc)),
-                due_date: row
-                    .get::<_, Option<String>>(10)?
-                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
-                    .map(|dt| dt.with_timezone(&Utc)),
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+                completed_at: row.get(9)?,
+                due_date: row.get(10)?,
             })
         })?;
 
@@ -281,10 +264,8 @@ impl Database {
         // Fill in tag_ids
         for task in &mut tasks {
             let mut tag_stmt = conn.prepare("SELECT tag_id FROM task_tags WHERE task_id = ?1")?;
-            let tag_ids: Vec<Uuid> = tag_stmt
-                .query_map(params![task.id.to_string()], |row| {
-                    Ok(Uuid::parse_str(&row.get::<_, String>(0)?).unwrap())
-                })?
+            let tag_ids: Vec<String> = tag_stmt
+                .query_map(params![&task.id], |row| row.get(0))?
                 .collect::<Result<Vec<_>, _>>()?;
             task.tag_ids = tag_ids;
         }
@@ -296,7 +277,7 @@ impl Database {
         &self,
         stmt: &mut rusqlite::Statement,
         params: P,
-    ) -> Result<Vec<(Uuid, RecordType, DateTime<Utc>)>> {
+    ) -> Result<Vec<(String, RecordType, String)>> {
         let rows = stmt.query_map(params, |row| {
             let record_type_str: String = row.get(1)?;
             let record_type = match record_type_str.as_str() {
@@ -307,24 +288,32 @@ impl Database {
                 _ => RecordType::Task,
             };
 
-            Ok((
-                Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-                record_type,
-                DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
-                    .unwrap()
-                    .with_timezone(&Utc),
-            ))
+            Ok((row.get(0)?, record_type, row.get(2)?))
         })?;
 
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
     /// Apply incoming changes from a client
-    pub fn apply_changes(&self, changes: &[SyncRecord]) -> Result<Vec<Uuid>> {
+    pub fn apply_changes(&self, changes: &[SyncRecord]) -> Result<Vec<String>> {
         let conn = self.conn.lock().unwrap();
         let mut conflicts = Vec::new();
 
-        for change in changes {
+        // Disable foreign key checks during sync to avoid ordering issues
+        conn.execute("PRAGMA foreign_keys = OFF", [])?;
+
+        // Sort changes: lists first, then tags, then tasks, then deletions last
+        // This ensures foreign key constraints are satisfied
+        let mut sorted_changes: Vec<_> = changes.iter().collect();
+        sorted_changes.sort_by_key(|change| match change {
+            SyncRecord::List(_) => 0,
+            SyncRecord::Tag(_) => 1,
+            SyncRecord::TaskTag(_) => 2,
+            SyncRecord::Task(_) => 3,
+            SyncRecord::Deleted { .. } => 4,
+        });
+
+        for change in sorted_changes {
             match change {
                 SyncRecord::Task(task) => {
                     if let Some(conflict) = self.upsert_task(&conn, task)? {
@@ -347,32 +336,31 @@ impl Database {
                     record_type,
                     deleted_at,
                 } => {
-                    self.apply_delete(&conn, *id, *record_type, *deleted_at)?;
+                    self.apply_delete(&conn, id, *record_type, deleted_at)?;
                 }
             }
         }
 
+        // Re-enable foreign key checks
+        conn.execute("PRAGMA foreign_keys = ON", [])?;
+
         Ok(conflicts)
     }
 
-    fn upsert_task(&self, conn: &Connection, task: &Task) -> Result<Option<Uuid>> {
+    fn upsert_task(&self, conn: &Connection, task: &Task) -> Result<Option<String>> {
         // Check existing
         let existing: Option<String> = conn
             .query_row(
                 "SELECT updated_at FROM tasks WHERE id = ?1",
-                params![task.id.to_string()],
+                params![&task.id],
                 |row| row.get(0),
             )
             .ok();
 
         if let Some(existing_updated) = existing {
-            let existing_dt = DateTime::parse_from_rfc3339(&existing_updated)
-                .unwrap()
-                .with_timezone(&Utc);
-
-            if task.updated_at <= existing_dt {
+            if task.updated_at <= existing_updated {
                 // Conflict: server has newer
-                return Ok(Some(task.id));
+                return Ok(Some(task.id.clone()));
             }
 
             // Update existing
@@ -381,16 +369,16 @@ impl Database {
                    completed = ?6, list_id = ?7, updated_at = ?8, completed_at = ?9, due_date = ?10
                    WHERE id = ?1"#,
                 params![
-                    task.id.to_string(),
-                    task.title,
-                    task.description,
-                    task.url,
+                    &task.id,
+                    &task.title,
+                    &task.description,
+                    &task.url,
                     format!("{:?}", task.priority).to_lowercase(),
                     task.completed as i32,
-                    task.list_id.to_string(),
-                    task.updated_at.to_rfc3339(),
-                    task.completed_at.map(|dt| dt.to_rfc3339()),
-                    task.due_date.map(|dt| dt.to_rfc3339()),
+                    &task.list_id,
+                    &task.updated_at,
+                    &task.completed_at,
+                    &task.due_date,
                 ],
             )?;
         } else {
@@ -400,17 +388,17 @@ impl Database {
                    created_at, updated_at, completed_at, due_date)
                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)"#,
                 params![
-                    task.id.to_string(),
-                    task.title,
-                    task.description,
-                    task.url,
+                    &task.id,
+                    &task.title,
+                    &task.description,
+                    &task.url,
                     format!("{:?}", task.priority).to_lowercase(),
                     task.completed as i32,
-                    task.list_id.to_string(),
-                    task.created_at.to_rfc3339(),
-                    task.updated_at.to_rfc3339(),
-                    task.completed_at.map(|dt| dt.to_rfc3339()),
-                    task.due_date.map(|dt| dt.to_rfc3339()),
+                    &task.list_id,
+                    &task.created_at,
+                    &task.updated_at,
+                    &task.completed_at,
+                    &task.due_date,
                 ],
             )?;
         }
@@ -418,52 +406,45 @@ impl Database {
         // Update tags
         conn.execute(
             "DELETE FROM task_tags WHERE task_id = ?1",
-            params![task.id.to_string()],
+            params![&task.id],
         )?;
 
+        let now = Utc::now().to_rfc3339();
         for tag_id in &task.tag_ids {
             conn.execute(
                 "INSERT OR IGNORE INTO task_tags (task_id, tag_id, created_at) VALUES (?1, ?2, ?3)",
-                params![
-                    task.id.to_string(),
-                    tag_id.to_string(),
-                    Utc::now().to_rfc3339()
-                ],
+                params![&task.id, tag_id, &now],
             )?;
         }
 
         Ok(None)
     }
 
-    fn upsert_list(&self, conn: &Connection, list: &List) -> Result<Option<Uuid>> {
+    fn upsert_list(&self, conn: &Connection, list: &List) -> Result<Option<String>> {
         let existing: Option<String> = conn
             .query_row(
                 "SELECT updated_at FROM lists WHERE id = ?1",
-                params![list.id.to_string()],
+                params![&list.id],
                 |row| row.get(0),
             )
             .ok();
 
         if let Some(existing_updated) = existing {
-            let existing_dt = DateTime::parse_from_rfc3339(&existing_updated)
-                .unwrap()
-                .with_timezone(&Utc);
-
-            if list.updated_at <= existing_dt {
-                return Ok(Some(list.id));
+            if list.updated_at <= existing_updated {
+                return Ok(Some(list.id.clone()));
             }
 
             conn.execute(
                 r#"UPDATE lists SET name = ?2, description = ?3, icon = ?4, color = ?5,
                    sort_order = ?6, updated_at = ?7 WHERE id = ?1"#,
                 params![
-                    list.id.to_string(),
-                    list.name,
-                    list.description,
-                    list.icon,
-                    list.color,
+                    &list.id,
+                    &list.name,
+                    &list.description,
+                    &list.icon,
+                    &list.color,
                     list.sort_order,
-                    list.updated_at.to_rfc3339(),
+                    &list.updated_at,
                 ],
             )?;
         } else {
@@ -471,15 +452,15 @@ impl Database {
                 r#"INSERT INTO lists (id, name, description, icon, color, is_inbox, sort_order, created_at, updated_at)
                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"#,
                 params![
-                    list.id.to_string(),
-                    list.name,
-                    list.description,
-                    list.icon,
-                    list.color,
+                    &list.id,
+                    &list.name,
+                    &list.description,
+                    &list.icon,
+                    &list.color,
                     list.is_inbox as i32,
                     list.sort_order,
-                    list.created_at.to_rfc3339(),
-                    list.updated_at.to_rfc3339(),
+                    &list.created_at,
+                    &list.updated_at,
                 ],
             )?;
         }
@@ -489,14 +470,9 @@ impl Database {
 
     fn upsert_tag(&self, conn: &Connection, tag: &Tag) -> Result<()> {
         conn.execute(
-            r#"INSERT OR REPLACE INTO tags (id, name, color, created_at)
-               VALUES (?1, ?2, ?3, ?4)"#,
-            params![
-                tag.id.to_string(),
-                tag.name,
-                tag.color,
-                tag.created_at.to_rfc3339(),
-            ],
+            r#"INSERT OR REPLACE INTO tags (id, name, color, created_at, updated_at)
+               VALUES (?1, ?2, ?3, ?4, ?5)"#,
+            params![&tag.id, &tag.name, &tag.color, &tag.created_at, &tag.updated_at],
         )?;
         Ok(())
     }
@@ -504,11 +480,7 @@ impl Database {
     fn upsert_task_tag(&self, conn: &Connection, link: &TaskTagLink) -> Result<()> {
         conn.execute(
             "INSERT OR IGNORE INTO task_tags (task_id, tag_id, created_at) VALUES (?1, ?2, ?3)",
-            params![
-                link.task_id.to_string(),
-                link.tag_id.to_string(),
-                link.created_at.to_rfc3339(),
-            ],
+            params![&link.task_id, &link.tag_id, &link.created_at],
         )?;
         Ok(())
     }
@@ -516,11 +488,10 @@ impl Database {
     fn apply_delete(
         &self,
         conn: &Connection,
-        id: Uuid,
+        id: &str,
         record_type: RecordType,
-        deleted_at: DateTime<Utc>,
+        deleted_at: &str,
     ) -> Result<()> {
-        let id_str = id.to_string();
         let type_str = match record_type {
             RecordType::Task => "task",
             RecordType::List => "list",
@@ -531,27 +502,27 @@ impl Database {
         // Record tombstone
         conn.execute(
             "INSERT OR REPLACE INTO tombstones (id, record_type, deleted_at) VALUES (?1, ?2, ?3)",
-            params![id_str, type_str, deleted_at.to_rfc3339()],
+            params![id, type_str, deleted_at],
         )?;
 
         // Delete the actual record
         match record_type {
             RecordType::Task => {
-                conn.execute("DELETE FROM tasks WHERE id = ?1", params![id_str])?;
+                conn.execute("DELETE FROM tasks WHERE id = ?1", params![id])?;
             }
             RecordType::List => {
                 // Don't delete inbox
                 conn.execute(
                     "DELETE FROM lists WHERE id = ?1 AND is_inbox = 0",
-                    params![id_str],
+                    params![id],
                 )?;
             }
             RecordType::Tag => {
-                conn.execute("DELETE FROM tags WHERE id = ?1", params![id_str])?;
+                conn.execute("DELETE FROM tags WHERE id = ?1", params![id])?;
             }
             RecordType::TaskTag => {
                 // id is task_id for task_tag tombstones
-                conn.execute("DELETE FROM task_tags WHERE task_id = ?1", params![id_str])?;
+                conn.execute("DELETE FROM task_tags WHERE task_id = ?1", params![id])?;
             }
         }
 
@@ -559,11 +530,11 @@ impl Database {
     }
 
     /// Update device sync timestamp
-    pub fn update_device_sync(&self, device_id: Uuid, timestamp: DateTime<Utc>) -> Result<()> {
+    pub fn update_device_sync(&self, device_id: &str, timestamp: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "INSERT OR REPLACE INTO device_sync (device_id, last_sync) VALUES (?1, ?2)",
-            params![device_id.to_string(), timestamp.to_rfc3339()],
+            params![device_id, timestamp],
         )?;
         Ok(())
     }

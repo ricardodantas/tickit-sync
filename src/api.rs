@@ -108,14 +108,14 @@ async fn sync(
     }
 
     // Get changes for the client (since their last sync)
-    let changes = state.db.get_changes_since(request.last_sync)?;
+    let changes = state.db.get_changes_since(request.last_sync.as_deref())?;
 
-    let server_time = Utc::now();
+    let server_time = Utc::now().to_rfc3339();
 
     // Update device sync timestamp
     state
         .db
-        .update_device_sync(request.device_id, server_time)?;
+        .update_device_sync(&request.device_id, &server_time)?;
 
     tracing::info!(
         device_id = %request.device_id,

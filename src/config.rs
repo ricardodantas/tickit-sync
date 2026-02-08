@@ -1,6 +1,10 @@
 //! Configuration for tickit-sync server
 
 use anyhow::{Context, Result};
+use argon2::{
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
+    Argon2,
+};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -35,8 +39,8 @@ pub struct DatabaseConfig {
 pub struct TokenConfig {
     /// Human-readable name for the token
     pub name: String,
-    /// The API token (generated with `tickit-sync token`)
-    pub token: String,
+    /// The hashed API token (argon2 hash, or plain text for backwards compat)
+    pub token_hash: String,
 }
 
 fn default_bind() -> String {
@@ -112,11 +116,7 @@ impl Config {
             "# tickit-sync configuration\n\
              # See: https://github.com/ricardodantas/tickit-sync\n\n\
              {}\n\n\
-             # Add tokens with: tickit-sync token --name <device-name>\n\
-             # Example:\n\
-             # [[tokens]]\n\
-             # name = \"macbook\"\n\
-             # token = \"your-generated-token-here\"\n",
+             # Add tokens with: tickit-sync token --name <device-name>\n",
             content
         );
 
@@ -125,8 +125,33 @@ impl Config {
         Ok(())
     }
 
-    /// Check if a token is valid
+    /// Check if a token is valid (supports both hashed and legacy plain tokens)
     pub fn validate_token(&self, token: &str) -> bool {
-        self.tokens.iter().any(|t| t.token == token)
+        let argon2 = Argon2::default();
+
+        for t in &self.tokens {
+            // Try to parse as argon2 hash
+            if let Ok(parsed_hash) = PasswordHash::new(&t.token_hash) {
+                if argon2.verify_password(token.as_bytes(), &parsed_hash).is_ok() {
+                    return true;
+                }
+            } else {
+                // Fallback: plain text comparison (legacy/backwards compat)
+                if t.token_hash == token {
+                    return true;
+                }
+            }
+        }
+        false
     }
+}
+
+/// Hash a token using argon2
+pub fn hash_token(token: &str) -> Result<String> {
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let hash = argon2
+        .hash_password(token.as_bytes(), &salt)
+        .map_err(|e| anyhow::anyhow!("Failed to hash token: {}", e))?;
+    Ok(hash.to_string())
 }
