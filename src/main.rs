@@ -160,17 +160,37 @@ async fn main() -> Result<()> {
             let token = generate_token();
             let label = name.unwrap_or_else(|| "default".to_string());
 
-            println!("Generated API token for '{}':", label);
+            // Auto-save to config if it exists
+            if config_path.exists() {
+                let mut cfg = Config::load_from(&config_path)?;
+                
+                // Check if token name already exists
+                if cfg.tokens.iter().any(|t| t.name == label) {
+                    println!("Token '{}' already exists. Use --revoke first to replace it.", label);
+                    return Ok(());
+                }
+                
+                cfg.tokens.push(config::TokenConfig {
+                    name: label.clone(),
+                    token: token.clone(),
+                });
+                cfg.save_to(&config_path)?;
+                
+                println!("Generated API token for '{}' and saved to config:", label);
+            } else {
+                println!("Generated API token for '{}':", label);
+                println!();
+                println!("Add this to your config.toml:");
+                println!();
+                println!("  [[tokens]]");
+                println!("  name = \"{}\"", label);
+                println!("  token = \"{}\"", token);
+            }
+            
             println!();
             println!("  {}", token);
             println!();
-            println!("Add this to your config.toml:");
-            println!();
-            println!("  [[tokens]]");
-            println!("  name = \"{}\"", label);
-            println!("  token = \"{}\"", token);
-            println!();
-            println!("Then configure Tickit client with:");
+            println!("Configure Tickit client with:");
             println!();
             println!("  [sync]");
             println!("  enabled = true");
