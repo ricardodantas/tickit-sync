@@ -135,11 +135,13 @@ impl Database {
 
         // Get tags
         let tags = if let Some(since) = since {
-            let mut stmt =
-                conn.prepare("SELECT id, name, color, created_at, updated_at FROM tags WHERE created_at > ?1")?;
+            let mut stmt = conn.prepare(
+                "SELECT id, name, color, created_at, updated_at FROM tags WHERE created_at > ?1",
+            )?;
             self.collect_tags(&mut stmt, params![since])?
         } else {
-            let mut stmt = conn.prepare("SELECT id, name, color, created_at, updated_at FROM tags")?;
+            let mut stmt =
+                conn.prepare("SELECT id, name, color, created_at, updated_at FROM tags")?;
             self.collect_tags(&mut stmt, [])?
         };
 
@@ -472,7 +474,13 @@ impl Database {
         conn.execute(
             r#"INSERT OR REPLACE INTO tags (id, name, color, created_at, updated_at)
                VALUES (?1, ?2, ?3, ?4, ?5)"#,
-            params![&tag.id, &tag.name, &tag.color, &tag.created_at, &tag.updated_at],
+            params![
+                &tag.id,
+                &tag.name,
+                &tag.color,
+                &tag.created_at,
+                &tag.updated_at
+            ],
         )?;
         Ok(())
     }

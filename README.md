@@ -245,22 +245,22 @@ Configuration file: `~/.config/tickit-sync/config.toml` (or `/data/config.toml` 
 
 ```toml
 # Server settings
+[server]
 port = 3030
-host = "0.0.0.0"
+bind = "0.0.0.0"
 
-# Database path
-database = "/data/tickit-sync.sqlite"
+# Database settings
+[database]
+path = "/data/tickit-sync.sqlite"
 
-# API tokens (managed via CLI, don't edit manually)
+# API tokens (managed via CLI, hashed with argon2)
 [[tokens]]
 name = "my-laptop"
-token = "tks_a1b2c3d4e5f6..."
-created_at = "2026-02-06T22:00:00Z"
+token_hash = "$argon2id$v=19$m=19456,t=2,p=1$..."
 
 [[tokens]]
 name = "my-desktop"
-token = "tks_x9y8z7w6v5u4..."
-created_at = "2026-02-06T23:00:00Z"
+token_hash = "$argon2id$v=19$m=19456,t=2,p=1$..."
 ```
 
 ### Environment Variables
@@ -281,7 +281,7 @@ All API endpoints (except `/health`) require a Bearer token.
 ### Token Management
 
 ```bash
-# Generate new token
+# Generate new token (automatically saved to config, hashed with argon2)
 tickit-sync token --name "device-name"
 
 # List all tokens
@@ -290,6 +290,8 @@ tickit-sync token --list
 # Revoke a token
 tickit-sync token --revoke "device-name"
 ```
+
+> ⚠️ **Important:** Tokens are hashed with Argon2 before storage. The plaintext token is only shown once when generated. Save it immediately!
 
 ### Using Tokens
 
@@ -305,6 +307,13 @@ curl -H "Authorization: Bearer tks_your_token_here" \
 Tokens are prefixed with `tks_` followed by 32 random alphanumeric characters:
 ```
 tks_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+```
+
+Tokens are stored hashed in the config file using Argon2id:
+```toml
+[[tokens]]
+name = "my-laptop"
+token_hash = "$argon2id$v=19$m=19456,t=2,p=1$..."
 ```
 
 <br>
@@ -337,27 +346,34 @@ Content-Type: application/json
 ```json
 {
   "device_id": "uuid-of-device",
-  "last_sync": "2026-02-06T22:00:00Z",  // null for first sync
+  "last_sync": "2026-02-06T22:00:00Z",
   "changes": [
     {
+      "type": "list",
+      "id": "uuid",
+      "name": "Work",
+      "icon": "💼",
+      "is_inbox": false,
+      "sort_order": 0,
+      "created_at": "2026-02-06T20:00:00Z",
+      "updated_at": "2026-02-06T22:30:00Z"
+    },
+    {
       "type": "task",
-      "data": {
-        "id": "uuid",
-        "title": "Buy groceries",
-        "completed": false,
-        "priority": "medium",
-        "list_id": "uuid",
-        "created_at": "2026-02-06T20:00:00Z",
-        "updated_at": "2026-02-06T22:30:00Z"
-      }
+      "id": "uuid",
+      "title": "Buy groceries",
+      "completed": false,
+      "priority": "medium",
+      "list_id": "uuid",
+      "tag_ids": ["tag-uuid-1", "tag-uuid-2"],
+      "created_at": "2026-02-06T20:00:00Z",
+      "updated_at": "2026-02-06T22:30:00Z"
     },
     {
       "type": "deleted",
-      "data": {
-        "id": "uuid",
-        "record_type": "task",
-        "deleted_at": "2026-02-06T22:15:00Z"
-      }
+      "id": "uuid",
+      "record_type": "task",
+      "deleted_at": "2026-02-06T22:15:00Z"
     }
   ]
 }
@@ -421,48 +437,60 @@ CREATE TABLE tasks (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     description TEXT,
-    completed INTEGER DEFAULT 0,
-    priority TEXT DEFAULT 'medium',
-    list_id TEXT,
-    due_date TEXT,
     url TEXT,
+    priority TEXT DEFAULT 'medium',
+    completed INTEGER DEFAULT 0,
+    list_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    device_id TEXT NOT NULL
+    completed_at TEXT,
+    due_date TEXT,
+    FOREIGN KEY (list_id) REFERENCES lists(id)
 );
 
--- Lists
+-- Lists/folders for organizing tasks
 CREATE TABLE lists (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    icon TEXT,
+    description TEXT,
+    icon TEXT DEFAULT '📁',
+    color TEXT,
     is_inbox INTEGER DEFAULT 0,
+    sort_order INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    device_id TEXT NOT NULL
+    updated_at TEXT NOT NULL
 );
 
--- Tags
+-- Tags for categorizing tasks
 CREATE TABLE tags (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    color TEXT,
+    color TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    device_id TEXT NOT NULL
+    updated_at TEXT
 );
 
--- Sync state per device
-CREATE TABLE sync_state (
-    device_id TEXT PRIMARY KEY,
-    last_sync TEXT NOT NULL
+-- Task-Tag junction table
+CREATE TABLE task_tags (
+    task_id TEXT NOT NULL,
+    tag_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (task_id, tag_id),
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 );
 
 -- Tombstones for deleted records
 CREATE TABLE tombstones (
     id TEXT PRIMARY KEY,
     record_type TEXT NOT NULL,
-    deleted_at TEXT NOT NULL,
-    device_id TEXT NOT NULL
+    deleted_at TEXT NOT NULL
+);
+
+-- Device sync state tracking
+CREATE TABLE device_sync (
+    device_id TEXT PRIMARY KEY,
+    last_sync TEXT NOT NULL
 );
 ```
 
@@ -512,10 +540,11 @@ cargo build --release --target x86_64-pc-windows-msvc
 ## 🔒 Security Considerations
 
 1. **Always use HTTPS** in production (via reverse proxy)
-2. **Keep tokens secret** - treat them like passwords
-3. **Firewall** - only expose the server to trusted networks or use a VPN
-4. **Backups** - regularly backup the SQLite database
-5. **Updates** - keep tickit-sync updated for security patches
+2. **Tokens are hashed** - stored using Argon2id, never in plaintext
+3. **Keep tokens secret** - treat them like passwords, only shown once at generation
+4. **Firewall** - only expose the server to trusted networks or use a VPN
+5. **Backups** - regularly backup the SQLite database
+6. **Updates** - keep tickit-sync updated for security patches
 
 <br>
 

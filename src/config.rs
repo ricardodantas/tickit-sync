@@ -2,8 +2,8 @@
 
 use anyhow::{Context, Result};
 use argon2::{
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -132,7 +132,10 @@ impl Config {
         for t in &self.tokens {
             // Try to parse as argon2 hash
             if let Ok(parsed_hash) = PasswordHash::new(&t.token_hash) {
-                if argon2.verify_password(token.as_bytes(), &parsed_hash).is_ok() {
+                if argon2
+                    .verify_password(token.as_bytes(), &parsed_hash)
+                    .is_ok()
+                {
                     return true;
                 }
             } else {

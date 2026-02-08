@@ -165,27 +165,33 @@ async fn main() -> Result<()> {
             // Auto-save to config if it exists
             if config_path.exists() {
                 let mut cfg = Config::load_from(&config_path)?;
-                
+
                 // Check if token name already exists
                 if cfg.tokens.iter().any(|t| t.name == label) {
-                    println!("Token '{}' already exists. Use --revoke first to replace it.", label);
+                    println!(
+                        "Token '{}' already exists. Use --revoke first to replace it.",
+                        label
+                    );
                     return Ok(());
                 }
-                
+
                 // Hash the token before storing
                 let token_hash = config::hash_token(&token)?;
-                
+
                 cfg.tokens.push(config::TokenConfig {
                     name: label.clone(),
                     token_hash,
                 });
                 cfg.save_to(&config_path)?;
-                
-                println!("Generated API token for '{}' and saved to config (hashed):", label);
+
+                println!(
+                    "Generated API token for '{}' and saved to config (hashed):",
+                    label
+                );
             } else {
                 // Hash for display
                 let token_hash = config::hash_token(&token)?;
-                
+
                 println!("Generated API token for '{}':", label);
                 println!();
                 println!("Add this to your config.toml:");
@@ -194,11 +200,13 @@ async fn main() -> Result<()> {
                 println!("  name = \"{}\"", label);
                 println!("  token_hash = \"{}\"", token_hash);
             }
-            
+
             println!();
             println!("  {}", token);
             println!();
-            println!("⚠️  Save this token now - it cannot be retrieved later (only the hash is stored).");
+            println!(
+                "⚠️  Save this token now - it cannot be retrieved later (only the hash is stored)."
+            );
             println!();
             println!("Configure Tickit client with:");
             println!();
