@@ -1105,7 +1105,7 @@ dependencies = [
 
 [[package]]
 name = "tickit-sync"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "argon2",
