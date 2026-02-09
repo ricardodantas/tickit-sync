@@ -73,10 +73,21 @@ impl Default for Config {
 impl Config {
     /// Default config path
     pub fn default_path() -> Result<PathBuf> {
-        // Check for config in current directory first
+        // Check environment variable first
+        if let Ok(env_path) = std::env::var("TICKIT_SYNC_CONFIG") {
+            return Ok(PathBuf::from(env_path));
+        }
+
+        // Check for config in current directory
         let local = PathBuf::from("config.toml");
         if local.exists() {
             return Ok(local);
+        }
+
+        // Check /data/config.toml (Docker default)
+        let data_config = PathBuf::from("/data/config.toml");
+        if data_config.exists() {
+            return Ok(data_config);
         }
 
         // Then check XDG config
