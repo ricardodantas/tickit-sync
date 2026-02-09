@@ -134,6 +134,15 @@ tickit-sync token --name "my-laptop"
 # for both mobile app and desktop CLI
 ```
 
+> ⚠️ **Important:** If the server is already running, you must restart it after generating a new token:
+> ```bash
+> # Docker
+> docker restart tickit-sync
+> 
+> # Podman
+> podman restart tickit-sync
+> ```
+
 ### 4. Start Server
 
 ```bash
@@ -231,6 +240,11 @@ podman exec tickit-sync tickit-sync token --name "my-device"
 # The token is automatically saved to the server config.
 # The output shows setup instructions for mobile app and desktop CLI.
 ```
+
+> ⚠️ **Important:** After generating a token, restart the container for it to take effect:
+> ```bash
+> docker restart tickit-sync   # or: podman restart tickit-sync
+> ```
 
 ### With Reverse Proxy (Caddy)
 
