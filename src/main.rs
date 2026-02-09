@@ -184,36 +184,48 @@ async fn main() -> Result<()> {
                 });
                 cfg.save_to(&config_path)?;
 
-                println!(
-                    "Generated API token for '{}' and saved to config (hashed):",
-                    label
-                );
+                println!("✅ Generated API token for '{}'\n", label);
+                println!("Token: {}\n", token);
+                println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                println!("📱 MOBILE APP (tickit-mobile):");
+                println!("   Settings → Sync Server: http://YOUR_SERVER_IP:3030");
+                println!("   Settings → Sync Token: {}", token);
+                println!("   Settings → Sync Enabled: ON\n");
+                println!("💻 DESKTOP CLI (tickit):");
+                println!("   Press 's' to open Settings, then configure:");
+                println!("   • Sync Server: http://YOUR_SERVER_IP:3030");
+                println!("   • Sync Token: {}", token);
+                println!("   • Sync Enabled: ON\n");
+                println!("   Or add to ~/.config/tickit/config.toml:");
+                println!("   [sync]");
+                println!("   enabled = true");
+                println!("   server = \"http://YOUR_SERVER_IP:3030\"");
+                println!("   token = \"{}\"", token);
+                println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                println!("⚠️  Save this token now - it cannot be retrieved later!");
             } else {
-                // Hash for display
+                // Hash for display (manual setup case)
                 let token_hash = config::hash_token(&token)?;
 
-                println!("Generated API token for '{}':", label);
-                println!();
-                println!("Add this to your config.toml:");
-                println!();
+                println!("Generated API token for '{}':\n", label);
+                println!("Token: {}\n", token);
+                println!("Add this to your server's config.toml:\n");
                 println!("  [[tokens]]");
                 println!("  name = \"{}\"", label);
-                println!("  token_hash = \"{}\"", token_hash);
+                println!("  token_hash = \"{}\"\n", token_hash);
+                println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                println!("📱 MOBILE APP (tickit-mobile):");
+                println!("   Settings → Sync Server: http://YOUR_SERVER_IP:3030");
+                println!("   Settings → Sync Token: {}", token);
+                println!("   Settings → Sync Enabled: ON\n");
+                println!("💻 DESKTOP CLI (tickit):");
+                println!("   Press 's' to open Settings, then configure:");
+                println!("   • Sync Server: http://YOUR_SERVER_IP:3030");
+                println!("   • Sync Token: {}", token);
+                println!("   • Sync Enabled: ON");
+                println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                println!("⚠️  Save this token now - it cannot be retrieved later!");
             }
-
-            println!();
-            println!("  {}", token);
-            println!();
-            println!(
-                "⚠️  Save this token now - it cannot be retrieved later (only the hash is stored)."
-            );
-            println!();
-            println!("Configure Tickit client with:");
-            println!();
-            println!("  [sync]");
-            println!("  enabled = true");
-            println!("  server = \"http://your-server:3030\"");
-            println!("  token = \"{}\"", token);
 
             Ok(())
         }

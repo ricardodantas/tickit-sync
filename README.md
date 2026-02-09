@@ -130,7 +130,8 @@ tickit-sync init
 ```bash
 # Create a token for your first device
 tickit-sync token --name "my-laptop"
-# Output: Generated token for 'my-laptop': tks_a1b2c3d4e5f6...
+# Token is auto-saved to config (hashed) and displays setup instructions
+# for both mobile app and desktop CLI
 ```
 
 ### 4. Start Server
@@ -212,6 +213,9 @@ docker exec tickit-sync tickit-sync token --name "my-device"
 
 # Podman
 podman exec tickit-sync tickit-sync token --name "my-device"
+
+# The token is automatically saved to the server config.
+# The output shows setup instructions for mobile app and desktop CLI.
 ```
 
 ### With Reverse Proxy (Caddy)
