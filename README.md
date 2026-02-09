@@ -144,9 +144,23 @@ tickit-sync serve
 tickit-sync serve --port 8080
 ```
 
-### 5. Configure Tickit Client
+### 5. Configure Tickit Clients
 
-Add to `~/.config/tickit/config.toml`:
+The token generation command shows setup instructions for all clients:
+
+**Mobile App (tickit-mobile):**
+- Open Settings
+- Set Sync Server URL
+- Paste the generated token
+- Enable Sync
+
+**Desktop CLI (tickit):**
+- Press `s` to open Settings
+- Navigate to Sync Server, press Enter, type URL
+- Navigate to Sync Token, press Enter, paste token
+- Enable Sync
+
+Or manually add to `~/.config/tickit/config.toml`:
 
 ```toml
 [sync]
